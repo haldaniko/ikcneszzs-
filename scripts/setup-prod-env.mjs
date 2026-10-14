@@ -37,7 +37,8 @@ writeIfMissing(
   "backend/.env.production",
   `NODE_ENV=production
 PORT=4000
-DATABASE_URL=postgres://ikcneszzs:${postgresPassword}@postgres:5432/ikcneszzs
+DATABASE_PATH=/workspace/db.sqlite3
+UPLOAD_DIR=/workspace/media
 REDIS_URL=redis://:${redisPassword}@redis:6379
 CORS_ORIGIN=https://ikcneszzs.xyz
 ACCESS_TOKEN_TTL=15m

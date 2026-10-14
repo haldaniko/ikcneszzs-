@@ -53,7 +53,7 @@ export async function createPost(input: Omit<Post, "id" | "publishedAt" | "updat
 export async function updatePost(id: string, input: Omit<Post, "id" | "publishedAt" | "updatedAt">) {
   const result = await query(
     `UPDATE generated_posts SET title=$1, slug=$2, excerpt=$3, tags=$4, status=$5, cover_image=$6, seo_title=$7, seo_description=$8,
-      content_html=$9, updated_at=now() WHERE id=$10 RETURNING *`,
+      content_html=$9, updated_at=$11 WHERE id=$10 RETURNING *`,
     [
       input.title,
       input.slug,
@@ -64,7 +64,8 @@ export async function updatePost(id: string, input: Omit<Post, "id" | "published
       input.seoTitle,
       input.seoDescription,
       input.contentHtml,
-      id
+      id,
+      new Date().toISOString()
     ]
   );
   return result.rows[0] ? mapPost(result.rows[0]) : null;

@@ -1,17 +1,47 @@
 import pg, { type QueryResultRow } from "pg";
+import { DatabaseSync } from "node:sqlite";
+import { existsSync } from "node:fs";
 import { defaultMasterPrompt, samplePosts } from "../data/samplePosts.js";
 
 const { Pool } = pg;
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+if (process.env.DATABASE_PATH && !existsSync(process.env.DATABASE_PATH)) throw new Error("Migrated SQLite database is missing");
+const sqlite = process.env.DATABASE_PATH ? new DatabaseSync(process.env.DATABASE_PATH) : null;
+export const pool = sqlite ? null : new Pool({ connectionString: process.env.DATABASE_URL });
+if (sqlite) {
+  sqlite.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = DELETE");
+}
 
-export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
-  return pool.query<T>(text, params);
+export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []): Promise<{ rows: T[] }> {
+  if (!sqlite) return pool!.query<T>(text, params);
+  const values: unknown[] = [];
+  const sql = text.replace(/\$(\d+)/g, (_, index: string) => {
+    const value = params[Number(index) - 1];
+    values.push(value !== null && typeof value === "object" ? JSON.stringify(value) : value);
+    return "?";
+  });
+  const statement = sqlite.prepare(sql);
+  if (statement.columns().length === 0) {
+    statement.run(...values as any[]);
+    return { rows: [] };
+  }
+  const rows = statement.all(...values as any[]).map((record: any) => {
+    for (const key of ["tags", "value", "meta"]) {
+      if (typeof record[key] === "string") record[key] = JSON.parse(record[key]);
+    }
+    return record as T;
+  });
+  return { rows };
 }
 
 export async function initDb() {
+  if (sqlite) {
+    if ((sqlite.prepare("PRAGMA integrity_check").get() as { integrity_check: string }).integrity_check !== "ok") throw new Error("SQLite integrity check failed");
+    for (const name of ["users", "refresh_tokens", "generated_posts", "subscribers", "admin_settings", "audit_logs"]) {
+      if (!sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(name)) throw new Error(`SQLite table missing: ${name}`);
+    }
+    return;
+  }
   await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
   await query(`
     CREATE TABLE IF NOT EXISTS users (

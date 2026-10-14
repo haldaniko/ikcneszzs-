@@ -9,8 +9,8 @@ export async function adminCsrf(req: AuthRequest, res: Response, next: NextFunct
   const csrfToken = req.header("x-csrf-token");
   if (!csrfToken) return res.status(403).json({ error: "CSRF token is required" });
   const result = await query(
-    "SELECT id FROM refresh_tokens WHERE csrf_token=$1 AND revoked_at IS NULL AND expires_at > now() LIMIT 1",
-    [csrfToken]
+    "SELECT id FROM refresh_tokens WHERE csrf_token=$1 AND revoked_at IS NULL AND expires_at > $2 LIMIT 1",
+    [csrfToken, new Date().toISOString()]
   );
   if (!result.rows[0]) return res.status(403).json({ error: "Invalid CSRF token" });
   next();

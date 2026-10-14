@@ -9,10 +9,8 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM deps AS build
-ARG VITE_API_URL=http://localhost:4000/api
-ENV VITE_API_URL=$VITE_API_URL
 COPY . .
-RUN npm run build
+RUN if [ -f .env.production ]; then npm run build; else VITE_API_URL=https://api.ikcneszzs.xyz/api npm run build; fi
 
 FROM nginx:1.27-alpine AS prod
 COPY nginx.conf /etc/nginx/conf.d/default.conf

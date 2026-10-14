@@ -1,0 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE TABLE users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'superadmin', created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE refresh_tokens (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL, csrf_token TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ);
+CREATE TABLE generated_posts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, excerpt TEXT NOT NULL, tags TEXT[] NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'published', cover_image TEXT NOT NULL DEFAULT '/covers/silk-road-ledger.svg', seo_title TEXT NOT NULL, seo_description TEXT NOT NULL, content_html TEXT NOT NULL, published_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE subscribers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE admin_settings (key TEXT PRIMARY KEY, value JSONB NOT NULL);
+CREATE TABLE audit_logs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID, action TEXT NOT NULL, meta JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+INSERT INTO users (id,email,password_hash) VALUES ('11111111-1111-4111-8111-111111111111','admin@example.test','hash');
+INSERT INTO refresh_tokens (user_id,token_hash,csrf_token,expires_at) VALUES ('11111111-1111-4111-8111-111111111111','token','csrf',now() + interval '1 day');
+INSERT INTO generated_posts (title,slug,excerpt,tags,cover_image,seo_title,seo_description,content_html) VALUES ('Тест','test','Описание',ARRAY['один','два'],'/uploads/covers/test.png','SEO','Описание','<p>Тест</p>');
+INSERT INTO subscribers (email) VALUES ('reader@example.test');
+INSERT INTO admin_settings (key,value) VALUES ('masterPrompt','"test prompt"'),('generationEnabled','false'),('generationTimes','["09:00"]');
+INSERT INTO audit_logs (user_id,action,meta) VALUES ('11111111-1111-4111-8111-111111111111','test','{"ok":true}');

@@ -33,8 +33,8 @@ export async function createRefreshSession(res: Response, user: User) {
   const csrfToken = crypto.randomBytes(24).toString("base64url");
   const days = Number(process.env.REFRESH_TOKEN_DAYS ?? 30);
   await query(
-    "INSERT INTO refresh_tokens (user_id, token_hash, csrf_token, expires_at) VALUES ($1,$2,$3,now()+($4 || ' days')::interval)",
-    [user.id, hashToken(token), csrfToken, days]
+    "INSERT INTO refresh_tokens (user_id, token_hash, csrf_token, expires_at) VALUES ($1,$2,$3,$4)",
+    [user.id, hashToken(token), csrfToken, new Date(Date.now() + days * 86400000).toISOString()]
   );
   res.cookie(refreshCookieName, token, {
     httpOnly: true,
@@ -49,8 +49,8 @@ export async function createRefreshSession(res: Response, user: User) {
 export async function refreshSession(token: string | undefined, csrfToken: string | undefined) {
   if (!token || !csrfToken) return null;
   const result = await query<{ user_id: string; csrf_token: string }>(
-    "SELECT * FROM refresh_tokens WHERE token_hash=$1 AND csrf_token=$2 AND revoked_at IS NULL AND expires_at > now()",
-    [hashToken(token), csrfToken]
+    "SELECT * FROM refresh_tokens WHERE token_hash=$1 AND csrf_token=$2 AND revoked_at IS NULL AND expires_at > $3",
+    [hashToken(token), csrfToken, new Date().toISOString()]
   );
   const session = result.rows[0];
   if (!session) return null;
@@ -62,8 +62,8 @@ export async function refreshSession(token: string | undefined, csrfToken: strin
 export async function revokeRefreshToken(token: string | undefined, csrfToken?: string) {
   if (!token || !csrfToken) return false;
   const result = await query(
-    "UPDATE refresh_tokens SET revoked_at=now() WHERE token_hash=$1 AND csrf_token=$2 RETURNING id",
-    [hashToken(token), csrfToken]
+    "UPDATE refresh_tokens SET revoked_at=$3 WHERE token_hash=$1 AND csrf_token=$2 RETURNING id",
+    [hashToken(token), csrfToken, new Date().toISOString()]
   );
   return Boolean(result.rows[0]);
 }
