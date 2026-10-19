@@ -16,7 +16,7 @@ Fullstack blog for Chinese business leaders entering Western markets: cultural i
 npm run dev:docker
 ```
 
-This creates `.env`, `backend/.env`, `frontend/.env`, builds containers, starts PostgreSQL, Redis, backend on `4000`, and frontend on `3000`.
+This creates the single root `.env` when it is missing, builds containers, and starts PostgreSQL, Redis, backend on `4000`, and frontend on `3000`.
 
 You can also run:
 
@@ -51,16 +51,7 @@ The password is stored as a bcrypt hash, never plain text.
 
 ## Environment Setup
 
-Real env files are ignored by git. Example files are committed:
-
-- `.env.example`
-- `.env.production.example`
-- `backend/.env.example`
-- `backend/.env.production.example`
-- `frontend/.env.example`
-- `frontend/.env.production.example`
-
-JWT secrets are generated automatically by setup scripts.
+All services and both Compose files read the single root `.env`; it is ignored by Git. `.env.sample` is the only committed template. Run `npm run setup:env` to create or complete `.env`; existing values are preserved and missing secrets are generated.
 
 ## OpenRouter Key
 
@@ -70,13 +61,7 @@ Add your key once to root `.env`:
 OPENROUTER_API_KEY=your_key_here
 ```
 
-Then run:
-
-```bash
-npm run setup:dev-env
-```
-
-The script copies the key into `backend/.env`. Without a key, production returns a clear error. Dev mode returns a draft placeholder so the admin flow can be tested safely.
+No copying is needed. The backend reads this value directly from the root `.env`. Without a key, production returns a clear error. Dev mode returns a draft placeholder so the admin flow can be tested safely.
 
 Do not run real AI generation unless you intentionally click `Generate now` or enable scheduled generation.
 
@@ -91,6 +76,18 @@ To change it, open `http://localhost:3000/admin`, login as superadmin, edit `AI 
 Admin supports article list, create/edit/delete, draft/published status, local cover image selector, AI generation settings, and manual `Generate now`.
 
 Generated articles are saved in PostgreSQL in development and SQLite in production. Cover images are selected from local assets under `frontend/public/covers` or uploaded to `./media/covers` in production. Their URLs remain `/uploads/covers/...`.
+
+## Telegram publishing API
+
+The bot API base is `https://api.ikcneszzs.xyz/api/bot/v1/`; the trailing slash is required by the bot configuration. Every route requires `Authorization: Bearer <BOT_INTEGRATION_TOKEN>`:
+
+- `GET options/`
+- `POST articles/`
+- `GET articles/<external_id>/`
+- `PUT articles/<external_id>/image/`
+- `POST articles/<external_id>/publish/`
+
+Bot articles use the existing publication model. They are created as drafts, use the `articles` category, support up to ten tags, and have no selectable author because the current model has no author field. Creation and publication are idempotent by `external_id`; a changed payload for the same ID returns `409`. Uploaded JPG, PNG, and WebP files are signature-checked, limited to 10 MiB, and persist under `UPLOAD_DIR`. Public article URLs have the form `https://ikcneszzs.xyz/article/<slug>`.
 
 ## JWT / Refresh Flow
 
@@ -112,15 +109,12 @@ docker volume inspect "${project}_postgres-data" "${project}_uploads-data" >/dev
 docker compose -f docker-compose.prod.yml stop backend postgres
 docker run --rm -v "${project}_postgres-data:/source:ro" -v "$PWD/backups:/backup" alpine tar -C /source -czf /backup/postgres-volume-before-sqlite.tar.gz .
 docker run --rm -v "${project}_uploads-data:/source:ro" -v "$PWD/backups:/backup" alpine tar -C /source -czf /backup/uploads-volume-before-sqlite.tar.gz .
-mkdir -p backups/backend backups/frontend
-cp -a .env.production backups/
-cp -a backend/.env.production backups/backend/
-test ! -f frontend/.env.production || cp -a frontend/.env.production backups/frontend/
+cp -a .env backups/
 if ls db.sqlite3* >/dev/null 2>&1; then cp -a db.sqlite3* backups/; fi
 test ! -d media || cp -a media backups/media.before-cutover
 ```
 
-Keep these backups outside the project before a future cleanup. Then update the code **in that same directory**. Keep the existing ignored `.env.production`, `backend/.env.production`, and `frontend/.env.production`; the new Compose reads them directly. Check `CORS_ORIGIN` and `REDIS_URL` in the backend file and `VITE_API_URL` in the frontend file before the launch. If this is a fresh installation, run `npm run setup:prod-env`, review the generated values, and initialize the PostgreSQL application schema before cutover. An absent or wrong PostgreSQL volume makes migration fail closed.
+Keep these backups outside the project before a future cleanup. Then update the code **in that same directory**. Consolidate any old values into the root `.env`; both Compose files read it directly. Check `CORS_ORIGIN`, `REDIS_URL`, `VITE_API_URL`, `SITE_PUBLIC_URL`, and `BOT_INTEGRATION_TOKEN` before launch. If this is a fresh installation, run `npm run setup:env`, review the generated values, and initialize the PostgreSQL application schema before cutover. An absent or wrong PostgreSQL volume makes migration fail closed.
 
 The working launch after updating code is one command:
 
@@ -164,5 +158,6 @@ docker compose up --build -d
 - Port `4000` busy: stop the process or change backend `PORT` and compose mapping.
 - Database not ready: check `docker compose -f docker-compose.prod.yml logs postgres migrate backend`; do not start the backend against an empty SQLite file.
 - Development admin login fails: inspect `docker compose logs admin-seed`, then rerun `docker compose up admin-seed`.
-- AI generation fails: verify `OPENROUTER_API_KEY` exists in `backend/.env` and do not expose it in logs or frontend env.
-- CORS error: check `CORS_ORIGIN` in `backend/.env`.
+- AI generation fails: verify `OPENROUTER_API_KEY` exists in root `.env` and do not expose it in logs or frontend code.
+- CORS error: check `CORS_ORIGIN` in root `.env`.
+- Telegram API returns `403`: ensure `BOT_INTEGRATION_TOKEN` in the site `.env` exactly matches the token variable referenced by the bot's `SITES_JSON`.

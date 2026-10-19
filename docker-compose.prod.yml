@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     env_file:
-      - path: .env.production
+      - path: .env
         required: true
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -16,7 +16,7 @@ services:
   redis:
     image: redis:7-alpine
     env_file:
-      - path: .env.production
+      - path: .env
         required: true
     command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
     restart: unless-stopped
@@ -24,7 +24,7 @@ services:
   migrate:
     build: ./migration
     env_file:
-      - path: .env.production
+      - path: .env
         required: true
     volumes:
       - ./:/workspace
@@ -38,7 +38,7 @@ services:
   backend:
     build: ./backend
     env_file:
-      - path: ./backend/.env.production
+      - path: .env
         required: true
     environment:
       DATABASE_PATH: /workspace/db.sqlite3
@@ -58,9 +58,9 @@ services:
     build:
       context: ./frontend
       target: prod
-    env_file:
-      - path: ./frontend/.env.production
-        required: false
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_ASSET_URL: ${VITE_ASSET_URL:-https://api.ikcneszzs.xyz}
     ports:
       - "8097:80"
     depends_on:

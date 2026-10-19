@@ -1,13 +1,4 @@
 services:
-  env-setup:
-    build:
-      context: .
-      dockerfile: Dockerfile.env-setup
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-    command: ["node", "/app/scripts/setup-dev-env.mjs"]
-
   postgres:
     image: postgres:16-alpine
     environment:
@@ -27,18 +18,21 @@ services:
   backend:
     build: ./backend
     env_file:
-      - path: ./backend/.env
-        required: false
+      - path: ./.env
+        required: true
     environment:
+      NODE_ENV: development
+      DATABASE_PATH: ""
       DATABASE_URL: postgres://${POSTGRES_USER:-ikcneszzs}:${POSTGRES_PASSWORD:-localpassword}@postgres:5432/${POSTGRES_DB:-ikcneszzs}
       REDIS_URL: redis://:${REDIS_PASSWORD:-localredis}@redis:6379
+      CORS_ORIGIN: http://localhost:3000
+      SITE_PUBLIC_URL: http://localhost:3000
+      UPLOAD_DIR: /app/uploads
     ports:
       - "4000:4000"
     volumes:
       - uploads-data:/app/uploads
     depends_on:
-      env-setup:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -47,15 +41,15 @@ services:
     build: ./backend
     command: npm run create-superadmin
     env_file:
-      - path: ./backend/.env
-        required: false
+      - path: ./.env
+        required: true
     environment:
+      NODE_ENV: development
+      DATABASE_PATH: ""
       DATABASE_URL: postgres://${POSTGRES_USER:-ikcneszzs}:${POSTGRES_PASSWORD:-localpassword}@postgres:5432/${POSTGRES_DB:-ikcneszzs}
       ADMIN_EMAIL: ${LOCAL_SUPERADMIN_EMAIL:-admin@ikcneszzs.local}
       ADMIN_PASSWORD: ${LOCAL_SUPERADMIN_PASSWORD:-MySecretPassword123!}
     depends_on:
-      env-setup:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
   frontend:
@@ -63,12 +57,10 @@ services:
       context: ./frontend
       target: dev
     environment:
-      VITE_API_URL: http://localhost:4000/api
+      VITE_API_URL: ${DEV_VITE_API_URL:-http://localhost:4000/api}
     ports:
       - "3000:3000"
     depends_on:
-      env-setup:
-        condition: service_completed_successfully
       backend:
         condition: service_started
 volumes:

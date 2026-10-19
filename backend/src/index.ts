@@ -8,6 +8,7 @@ import { authRouter } from "./routes/auth.js";
 import { healthIndexRouter } from "./routes/healthIndex.js";
 import { postsRouter } from "./routes/posts.js";
 import { subscribersRouter } from "./routes/subscribers.js";
+import { botRouter } from "./routes/bot.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { initDb } from "./services/db.js";
 import { apiLimiter } from "./services/rateLimit.js";
@@ -36,6 +37,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/subscribers", subscribersRouter);
 app.use("/api/health", healthIndexRouter);
+app.use("/api/bot/v1", botRouter);
 app.use(errorHandler);
 
 await initDb();

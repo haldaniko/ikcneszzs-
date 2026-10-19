@@ -1,8 +1,7 @@
 {
   "scripts": {
-    "setup:dev-env": "node scripts/setup-dev-env.mjs",
-    "setup:prod-env": "node scripts/setup-prod-env.mjs",
-    "dev:docker": "npm run setup:dev-env && docker compose up --build -d",
+    "setup:env": "node scripts/setup-env.mjs",
+    "dev:docker": "npm run setup:env && docker compose up --build -d",
     "docker:rebuild": "docker compose down && docker compose up --build -d",
     "build": "npm --prefix backend run build && npm --prefix frontend run build"
   }

@@ -12,6 +12,11 @@ if (sqlite) {
   sqlite.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = DELETE");
 }
 
+export async function closeDb() {
+  if (sqlite) sqlite.close();
+  else await pool!.end();
+}
+
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []): Promise<{ rows: T[] }> {
   if (!sqlite) return pool!.query<T>(text, params);
   const values: unknown[] = [];
@@ -40,6 +45,11 @@ export async function initDb() {
     for (const name of ["users", "refresh_tokens", "generated_posts", "subscribers", "admin_settings", "audit_logs"]) {
       if (!sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(name)) throw new Error(`SQLite table missing: ${name}`);
     }
+    const postColumns = new Set((sqlite.prepare("PRAGMA table_info(generated_posts)").all() as Array<{ name: string }>).map((column) => column.name));
+    if (!postColumns.has("bot_external_id")) sqlite.exec("ALTER TABLE generated_posts ADD COLUMN bot_external_id TEXT");
+    if (!postColumns.has("bot_payload_hash")) sqlite.exec("ALTER TABLE generated_posts ADD COLUMN bot_payload_hash TEXT");
+    if (!postColumns.has("bot_image_hash")) sqlite.exec("ALTER TABLE generated_posts ADD COLUMN bot_image_hash TEXT");
+    sqlite.exec("CREATE UNIQUE INDEX IF NOT EXISTS generated_posts_bot_external_id_idx ON generated_posts(bot_external_id) WHERE bot_external_id IS NOT NULL");
     return;
   }
   await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
@@ -92,6 +102,10 @@ export async function initDb() {
   `);
   await query("ALTER TABLE generated_posts ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'");
   await query("ALTER TABLE generated_posts ADD COLUMN IF NOT EXISTS cover_image TEXT NOT NULL DEFAULT '/covers/silk-road-ledger.svg'");
+  await query("ALTER TABLE generated_posts ADD COLUMN IF NOT EXISTS bot_external_id UUID");
+  await query("ALTER TABLE generated_posts ADD COLUMN IF NOT EXISTS bot_payload_hash TEXT");
+  await query("ALTER TABLE generated_posts ADD COLUMN IF NOT EXISTS bot_image_hash TEXT");
+  await query("CREATE UNIQUE INDEX IF NOT EXISTS generated_posts_bot_external_id_idx ON generated_posts(bot_external_id) WHERE bot_external_id IS NOT NULL");
 
   const postsCount = await query<{ count: string }>("SELECT count(*) FROM generated_posts");
   if (Number(postsCount.rows[0].count) === 0) {

@@ -20,6 +20,12 @@ const allowedTypes: Record<string, string> = {
   "image/svg+xml": "svg"
 };
 
+const botAllowedTypes: Record<string, { extension: string; matches: (buffer: Buffer) => boolean }> = {
+  "image/jpeg": { extension: "jpg", matches: (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff },
+  "image/png": { extension: "png", matches: (buffer) => buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  "image/webp": { extension: "webp", matches: (buffer) => buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP" }
+};
+
 function slugifyName(name: string) {
   return name
     .replace(/\.[^.]+$/, "")
@@ -78,6 +84,22 @@ export async function saveCoverImage(input: { fileName?: string; dataUrl?: strin
 export async function deleteCoverImage(name: string) {
   const safeName = path.basename(name);
   await fs.rm(path.join(coversDir, safeName), { force: true });
+}
+
+export async function saveBotCoverImage(externalId: string, mimeType: string, buffer: Buffer) {
+  if (!buffer.length) throw new Error("Image is empty");
+  if (buffer.length > maxUploadBytes) throw new Error("Image is larger than 10MB");
+  const type = botAllowedTypes[mimeType];
+  if (!type || !type.matches(buffer)) throw new Error("Only valid JPG, PNG, and WebP images are allowed");
+  await ensureCoversDir();
+  const name = `bot-${externalId}.${type.extension}`;
+  const filePath = path.join(coversDir, name);
+  try {
+    await fs.writeFile(filePath, buffer, { flag: "wx" });
+  } catch (error: any) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  return { filePath, url: `${publicPrefix}/${name}` };
 }
 
 export async function pickRandomCoverImage(): Promise<string | null> {
